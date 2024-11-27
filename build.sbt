@@ -1,15 +1,15 @@
-val scala3Version = "3.4.0"
+val scala3Version = "3.3.0"
 val circeVersion = "0.14.1"
 val scalatestVersion = "3.2.9"
 val fs2Version = "3.8.0"
-val jqVersion = "0.1.0-SNAPSHOT"
+val jqVersion = "0.1.0-DECOUPLING"
 
 lazy val root = project
   .in(file("."))
   .settings(
     organization := "jqscala",
     name := "jq-fs2",
-    version := "0.1.0-SNAPSHOT",
+    version := "0.1.0-DECOUPLING",
 
     scalaVersion := scala3Version,
 

@@ -1,12 +1,15 @@
 package jqfs2
 
 import jq._
+import jq.std.given
+import jq.std._
+
 import fs2._
 import io.circe.{JsonObject, Json}
 import io.circe.syntax._
 
 type Filter[F[_]] = 
-    Pipe[F, io.circe.Json, io.circe.Json | jq.TypeError]
+    Pipe[F, io.circe.Json, io.circe.Json | TypeError[Json]]
 
 given [F[_]]: Jq[Filter[F]] with 
     def id: Filter[F] = 
@@ -29,17 +32,17 @@ given [F[_]]: Jq[Filter[F]] with
     def array(f: Filter[F]): Filter[F] =
         _ flatMap: json => 
             f(Stream(json))
-                .fold(List[Json|TypeError]())(_ :+ _)
+                .fold(List[Json|TypeError[Json]]())(_ :+ _)
                 .flatMap: content => 
                     content.lastOption match
-                        case Some(error: TypeError) => Stream(error)
+                        case Some(error: TypeError[Json]) => Stream(error)
                         case _ => Stream(Json.arr(content.collect{ case j: Json => j }*))
 
     extension (f1: Filter[F])
         def |(f2: Filter[F]): Filter[F] = 
             _ flatMap: v => 
                 f1(Stream(v)) flatMap:
-                    case e: TypeError => Stream(e)
+                    case e: TypeError[Json] => Stream(e)
                     case j: Json => 
                         f2(Stream(j)).takeThrough: 
                             case j: Json => true
@@ -55,21 +58,21 @@ given [F[_]]: Jq[Filter[F]] with
         private def indexArray(idx: Int): Filter[F] =
             _.flatMap: v1 => 
                 f1(Stream(v1)).flatMap:
-                    case e: TypeError => Stream(e)
+                    case e: TypeError[Json] => Stream(e)
                     case IsArray(vec) => Stream(vec.lift(idx).getOrElse(Json.Null))
                     case v2: Json => Stream(TypeError.CannotIndex(v2, idx.asJson)) 
                         
         private def indexObj(key: String): Filter[F] =
             _.flatMap: v1 => 
                 f1(Stream(v1)).flatMap:
-                    case e: TypeError => Stream(e)
+                    case e: TypeError[Json] => Stream(e)
                     case IsObject(obj) => Stream(obj(key).getOrElse(Json.Null))
                     case v2: Json => Stream(TypeError.CannotIndex(v2, key.asJson))     
 
         def index(keyF: Filter[F]): Filter[F] = 
             _.flatMap: v => 
                 keyF(Stream(v)) flatMap:
-                    case e: TypeError => Stream(e)
+                    case e: TypeError[Json] => Stream(e)
                     case IsInt(idx) => indexArray(idx)(Stream(v))
                     case IsString(str) => indexObj(str)(Stream(v))
                     case k: Json => Stream(TypeError.CannotIndex(what = v, _with = k))
@@ -78,5 +81,5 @@ given [F[_]]: Jq[Filter[F]] with
             _ flatMap: j => 
                 f1(Stream(j)) flatMap:
                     case j: Json => Stream(j)
-                    case e: TypeError => 
+                    case e: TypeError[Json] => 
                         f2(Stream(Json.fromString(e.toString)))
